@@ -78,13 +78,6 @@
             <version>${nimbus.version}</version>
         </dependency>
 
-        <!-- Key encryption at rest -->
-        <dependency>
-            <groupId>com.sshtools</groupId>
-            <artifactId>jadaptive-hsm</artifactId>
-            <version>${jadaptive-hsm.version}</version>
-        </dependency>
-
         <!-- JSON (config store + API responses) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
