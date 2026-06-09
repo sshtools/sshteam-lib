@@ -15,9 +15,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,11 +69,17 @@ public class SshteamHttpClient {
         return builder.build();
     }
 
-    /** Trust manager that accepts any certificate — ONLY for dev/test use. */
-    private static final X509TrustManager TRUST_ALL = new X509TrustManager() {
-        @Override public void checkClientTrusted(X509Certificate[] chain, String authType) {}
-        @Override public void checkServerTrusted(X509Certificate[] chain, String authType) {}
-        @Override public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+    /** Trust manager that accepts any certificate — ONLY for dev/test use.
+     *  Using X509ExtendedTrustManager prevents the JDK from wrapping it in
+     *  AbstractTrustManagerWrapper, which would re-apply hostname checking. */
+    private static final X509ExtendedTrustManager TRUST_ALL = new X509ExtendedTrustManager() {
+        @Override public void checkClientTrusted(java.security.cert.X509Certificate[] c, String a) {}
+        @Override public void checkServerTrusted(java.security.cert.X509Certificate[] c, String a) {}
+        @Override public void checkClientTrusted(java.security.cert.X509Certificate[] c, String a, java.net.Socket s) {}
+        @Override public void checkServerTrusted(java.security.cert.X509Certificate[] c, String a, java.net.Socket s) {}
+        @Override public void checkClientTrusted(java.security.cert.X509Certificate[] c, String a, SSLEngine e) {}
+        @Override public void checkServerTrusted(java.security.cert.X509Certificate[] c, String a, SSLEngine e) {}
+        @Override public java.security.cert.X509Certificate[] getAcceptedIssuers() { return new java.security.cert.X509Certificate[0]; }
     };
 
     // ── OAuth2 device flow ────────────────────────────────────────────────────
