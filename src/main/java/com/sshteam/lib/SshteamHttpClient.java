@@ -8,7 +8,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -85,7 +84,25 @@ public class SshteamHttpClient {
     // ── OAuth2 device flow ────────────────────────────────────────────────────
 
     public JsonNode deviceAuthorize(String clientId, String scope) throws IOException, InterruptedException {
-        String body = formEncode(Map.of("client_id", clientId, "scope", scope));
+        return deviceAuthorize(clientId, scope, null);
+    }
+
+    /**
+     * Starts an OAuth2 device authorization flow with an optional device display name.
+     *
+     * @param clientId   OAuth client ID
+     * @param scope      requested scope
+     * @param deviceName human-readable label shown in the user's device list (null → server default)
+     */
+    public JsonNode deviceAuthorize(String clientId, String scope, String deviceName)
+        throws IOException, InterruptedException {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("client_id", clientId);
+        params.put("scope", scope);
+        if (deviceName != null && !deviceName.isBlank()) {
+            params.put("device_name", deviceName);
+        }
+        String body = formEncode(params);
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(serverUrl + "/oauth2/device_authorization"))
             .header("Content-Type", "application/x-www-form-urlencoded")
