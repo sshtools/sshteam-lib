@@ -74,12 +74,13 @@ public interface DeviceStore {
      */
     default String resolveServer(String serverUrl) throws IOException {
         if (serverUrl != null && !serverUrl.isBlank()) {
-            return serverUrl;
+            return ServerUrlNormalizer.normalize(serverUrl);
         }
-        return getDefaultServer().orElseThrow(() ->
+        String defaultServer = getDefaultServer().orElseThrow(() ->
             new IllegalStateException(
                 "No server specified and no default server configured. " +
                 "Run 'sshteam init <server>' first."));
+        return ServerUrlNormalizer.normalize(defaultServer);
     }
 
     /**
@@ -102,6 +103,10 @@ public interface DeviceStore {
      *                               and no refresh token is available
      */
     default String getCurrentAccessToken(String serverUrl, DpopSigner signer) throws Exception {
+        return getCurrentAccessToken(serverUrl, signer, false);
+    }
+
+    default String getCurrentAccessToken(String serverUrl, DpopSigner signer, boolean insecure) throws Exception {
         DeviceCredentials credentials = loadCredentials(serverUrl).orElseThrow(() ->
             new IllegalStateException(
                 "Not initialised for " + serverUrl +
@@ -119,7 +124,7 @@ public interface DeviceStore {
                 "Run 'sshteam init " + serverUrl + "' again.");
         }
 
-        SshteamHttpClient client = new SshteamHttpClient(serverUrl);
+        SshteamHttpClient client = new SshteamHttpClient(serverUrl, insecure);
         String dpopProof = signer.createProof("POST", client.tokenEndpointUrl());
         JsonNode refreshResult = client.refreshToken(refreshToken, dpopProof);
 
