@@ -17,8 +17,8 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <p>Implementations are responsible for encrypting tokens and private key material at
  * rest. All values returned from load methods are already decrypted.</p>
  *
- * <p>The {@link FilesystemDeviceStore} is the standard implementation backed by
- * {@code ~/.sshteam/}.</p>
+ * <p>For file-backed persistence, prefer extending {@link AbstractFileDeviceStore}
+ * and supplying a {@link DeviceStoreEncryption} implementation.</p>
  */
 public interface DeviceStore {
 

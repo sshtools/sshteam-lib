@@ -1,0 +1,85 @@
+sshteam-lib CHANGES
+===================
+
+This file records notable changes for sshteam-lib by release.
+
+Version 0.0.1
+-------------
+Initial public baseline release.
+
+Core features:
+- DPoP proof generation and signing via DpopSigner.
+  - Generates EC P-256 key pairs.
+  - Creates RFC 9449-style DPoP proofs for token and resource endpoints.
+  - Supports serializing/restoring private JWK material.
+- HTTP client for SSH Teams server API via SshteamHttpClient.
+  - OAuth2 device authorization start and token polling.
+  - Token refresh flow.
+  - SSH certificate signing request endpoint.
+  - Device revocation endpoint.
+  - Server URL helpers for sign/token/revoke routes.
+- Multi-server credential abstraction via DeviceStore.
+  - Per-server credential persistence contract.
+  - Default server selection.
+  - Access token refresh convenience logic.
+  - DPoP key storage/loading contract.
+- DeviceCredentials value object for access token, refresh token, expiry, and key id.
+- ServerUrlNormalizer utility for consistent base URL handling.
+
+Compatibility notes:
+- Java 11+ baseline.
+- No high-level workflow facade in this release; consumers orchestrate raw flow steps themselves.
+
+
+Version 0.0.2-SNAPSHOT
+----------------------
+This version adds a higher-level client API and extensible encrypted persistence primitives.
+
+Added:
+- New high-level facade: SshteamClient.
+  - startRegistration(...)
+  - register(...)
+  - pollRegistration(...)
+  - getCurrentAccessToken()
+  - requestCertificate(...)
+  - revokeDevice(...)
+  - listRegistrations(), listRegistrationsAsMaps()
+- Registration scope convenience defaults.
+  - DEFAULT_REGISTRATION_SCOPE = signing.
+  - Overloads that no longer require explicitly passing scope.
+- Ephemeral SSH certificate helper.
+  - generateEphemeralCertificate(host, port, username, keyType)
+  - Probes remote SSH host key fingerprint.
+  - Generates ephemeral keypair.
+  - Requests SSH Teams certificate.
+  - Returns combined SshKeyPair (private key + signed certificate key).
+- New reusable file-backed store base:
+  - AbstractFileDeviceStore
+  - Standardized per-server path layout.
+  - Encrypted token save/load pattern with enc:: prefix handling.
+  - Default server metadata persistence.
+  - Best-effort restrictive file permissions.
+- New encryption abstraction and implementation:
+  - DeviceStoreEncryption (pluggable strategy interface)
+  - AesGcmDeviceStoreEncryption (Java 11 compatible AES/GCM)
+  - Per-server key derivation from caller-supplied secret material.
+- New integration-style tests for high-level flows:
+  - SshteamClientIntegrationTest
+  - InMemoryDeviceStore test double
+
+Changed:
+- pom version updated from 0.0.1 to 0.0.2-SNAPSHOT.
+- Added Maven dependency:
+  - com.sshtools:maverick-synergy-client:${maverick.version}
+- Added property:
+  - maverick.version=3.2.0-SNAPSHOT
+- DeviceStore docs now point file-backed implementations to AbstractFileDeviceStore + DeviceStoreEncryption.
+
+Behavioral notes:
+- Existing DeviceStore method signatures remain unchanged (additive evolution).
+- generateEphemeralCertificate requires network reachability to the target SSH host/port.
+- Encryption is now explicitly consumer-configurable through DeviceStoreEncryption.
+
+Potential upgrade impact:
+- Projects requiring deterministic/release-only dependencies should review snapshot usage of maverick-synergy-client.
+- Consumers may migrate from ad hoc orchestration to SshteamClient for simpler registration and cert workflows.

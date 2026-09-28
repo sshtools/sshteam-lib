@@ -6,7 +6,7 @@
 
     <groupId>com.sshtools</groupId>
     <artifactId>sshteam-lib</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>sshteam-lib</name>
     <description>SSH Teams library — DPoP signing, HTTP client, and device credential storage API</description>
@@ -44,6 +44,7 @@
         <nimbus.version>9.40</nimbus.version>
         <jackson.version>2.17.2</jackson.version>
         <jadaptive-hsm.version>0.0.1</jadaptive-hsm.version>
+        <maverick.version>3.2.0-SNAPSHOT</maverick.version>
         <slf4j.version>2.0.13</slf4j.version>
         <surefire.argLine>-Dnet.bytebuddy.experimental=true</surefire.argLine>
     </properties>
@@ -90,6 +91,13 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
+        </dependency>
+
+        <!-- Maverick Synergy SSH primitives used for ephemeral certificate helpers -->
+        <dependency>
+            <groupId>com.sshtools</groupId>
+            <artifactId>maverick-synergy-client</artifactId>
+            <version>${maverick.version}</version>
         </dependency>
 
         <!-- Testing -->
