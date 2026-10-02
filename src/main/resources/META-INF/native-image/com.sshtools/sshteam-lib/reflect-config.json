@@ -1,0 +1,14 @@
+[
+  {
+    "name": "com.sshteam.lib.AbstractFileDeviceStore$StoredCredentials",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.sshteam.lib.AbstractFileDeviceStore$DefaultsRecord",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  }
+]
