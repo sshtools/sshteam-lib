@@ -246,6 +246,88 @@ class SshteamClientIntegrationTest {
             .hasMessageContaining("principal not permitted");
     }
 
+    // ── passkey approval ──────────────────────────────────────────────────
+
+    private SshteamClient approvalClient(AtomicInteger resumeCalls, java.util.function.IntFunction<String[]> resumeScript)
+            throws Exception {
+        server.createContext("/api/v1/ssh/sign", exchange -> {
+            writeJson(exchange, 202, "{\"status\":\"pending_approval\",\"transaction_id\":\"tx-1\","
+                    + "\"expires_in\":30,\"interval\":1}");
+        });
+        server.createContext("/api/v1/ssh/sign/resume", exchange -> {
+            assertThat(exchange.getRequestHeaders().getFirst("DPoP")).isNotBlank();
+            assertThat(readBody(exchange)).contains("tx-1");
+            String[] reply = resumeScript.apply(resumeCalls.getAndIncrement());
+            writeJson(exchange, Integer.parseInt(reply[0]), reply[1]);
+        });
+        server.start();
+
+        InMemoryDeviceStore store = new InMemoryDeviceStore();
+        DpopSigner signer = DpopSigner.generate();
+        store.saveDpopPrivateKey(baseUrl, signer.toPrivateKeyJwkJson());
+        store.saveCredentials(new DeviceCredentials(baseUrl, "access-token", "refresh-token",
+                Instant.now().getEpochSecond() + 3600, signer.getKeyId()));
+        return new SshteamClient(store, baseUrl);
+    }
+
+    @Test
+    void requestCertificateWaitsForApprovalThenReturnsCertificate() throws Exception {
+        AtomicInteger resumeCalls = new AtomicInteger();
+        SshteamClient client = approvalClient(resumeCalls, call -> call < 1
+                ? new String[] {"202", "{\"status\":\"pending_approval\"}"}
+                : new String[] {"200", "{\"status\":\"issued\",\"certificate\":\"ssh-ed25519-cert-v01@openssh.com AAAAOK\"}"});
+        AtomicInteger pendingNotices = new AtomicInteger();
+
+        String certificate = client.requestCertificate("lee", "SHA256:abc", "ssh-ed25519 AAAATEST", "ED25519", "UTC",
+                (transactionId, expiresAt) -> {
+                    assertThat(transactionId).isEqualTo("tx-1");
+                    assertThat(expiresAt).isAfter(Instant.now());
+                    pendingNotices.incrementAndGet();
+                });
+
+        assertThat(certificate).endsWith("AAAAOK");
+        assertThat(resumeCalls.get()).isEqualTo(2);
+        assertThat(pendingNotices.get()).isEqualTo(1);
+    }
+
+    @Test
+    void requestCertificateReportsDenialExpiryAndRefusal() throws Exception {
+        String[][] cases = {
+            {"403", "{\"error\":\"approval_denied\"}", "DENIED"},
+            {"410", "{\"error\":\"approval_expired\"}", "EXPIRED"},
+            {"403", "{\"error\":\"approval_cancelled\"}", "CANCELLED"},
+            {"403", "{\"error\":\"approval_refused\",\"reason\":\"policy_changed\"}", "REFUSED"},
+            {"409", "{\"error\":\"approval_already_used\"}", "ALREADY_USED"},
+        };
+        for (String[] testCase : cases) {
+            setUp();
+            AtomicInteger calls = new AtomicInteger();
+            SshteamClient client = approvalClient(calls, call -> new String[] {testCase[0], testCase[1]});
+
+            assertThatThrownBy(() -> client.requestCertificate("lee", "SHA256:abc", "ssh-ed25519 AAAATEST", "ED25519", "UTC"))
+                .isInstanceOfSatisfying(SshteamClient.CertificateApprovalException.class,
+                    ex -> assertThat(ex.outcome().name()).isEqualTo(testCase[2]));
+            tearDown();
+        }
+    }
+
+    @Test
+    void requestCertificateWithoutApprovalPolicyIsUnchanged() throws Exception {
+        server.createContext("/api/v1/ssh/sign", exchange ->
+                writeJson(exchange, 200, "{\"certificate\":\"ssh-ed25519-cert-v01@openssh.com AAAADIRECT\"}"));
+        server.start();
+        InMemoryDeviceStore store = new InMemoryDeviceStore();
+        DpopSigner signer = DpopSigner.generate();
+        store.saveDpopPrivateKey(baseUrl, signer.toPrivateKeyJwkJson());
+        store.saveCredentials(new DeviceCredentials(baseUrl, "access-token", "refresh-token",
+                Instant.now().getEpochSecond() + 3600, signer.getKeyId()));
+
+        String certificate = new SshteamClient(store, baseUrl)
+                .requestCertificate("lee", "SHA256:abc", "ssh-ed25519 AAAATEST", "ED25519", "UTC");
+
+        assertThat(certificate).endsWith("AAAADIRECT");
+    }
+
     @Test
     void listRegistrationsBuildsStatusRows() throws Exception {
         InMemoryDeviceStore store = new InMemoryDeviceStore();

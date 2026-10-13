@@ -30,6 +30,7 @@ import com.sshtools.common.ssh.components.SshPublicKey;
 public final class SshteamClient {
 
     public static final String DEFAULT_REGISTRATION_SCOPE = "signing";
+    private static final long APPROVAL_GRACE_SECONDS = 10L;
 
     private final DeviceStore store;
     private final String serverUrl;
@@ -165,6 +166,18 @@ public final class SshteamClient {
 
     public String requestCertificate(String principal, String serverFingerprint,
             String publicKey, String certificateType, String timezone) throws Exception {
+        return requestCertificate(principal, serverFingerprint, publicKey, certificateType, timezone,
+                ApprovalListener.NONE);
+    }
+
+    /**
+     * Requests a certificate. If the server's policy requires passkey approval the call keeps polling
+     * (never blocking the server) until the request is approved, denied, expires or is cancelled.
+     *
+     * @throws CertificateApprovalException when the request is denied, expires, is cancelled or refused
+     */
+    public String requestCertificate(String principal, String serverFingerprint,
+            String publicKey, String certificateType, String timezone, ApprovalListener listener) throws Exception {
         DpopSigner signer = store.loadDpopSigner(serverUrl);
         SshteamHttpClient client = new SshteamHttpClient(serverUrl, ignoreSslTrust);
         String accessToken = store.getCurrentAccessToken(serverUrl, signer, ignoreSslTrust);
@@ -187,12 +200,120 @@ public final class SshteamClient {
                 requestTimezone,
                 requestCertificateType);
 
+        if ("pending_approval".equals(response.path("status").asText())) {
+            return awaitApproval(client, signer, response, listener == null ? ApprovalListener.NONE : listener);
+        }
+
         String certificate = response.path("certificate").asText().trim();
         if (certificate.isEmpty()) {
             String error = response.path("error").asText();
             throw new IllegalStateException(error.isBlank() ? "Certificate response missing certificate" : error);
         }
         return certificate;
+    }
+
+    private String awaitApproval(SshteamHttpClient client, DpopSigner signer, JsonNode pending,
+            ApprovalListener listener) throws Exception {
+        String transactionId = text(pending, "transaction_id");
+        long expiresIn = Math.max(1L, pending.path("expires_in").asLong(90L));
+        long intervalSeconds = Math.max(1L, pending.path("interval").asLong(2L));
+        Instant expiresAt = Instant.now().plusSeconds(expiresIn);
+        listener.onPending(transactionId, expiresAt);
+
+        // Local deadline (not the server clock) plus a little grace for the final poll.
+        long deadline = System.nanoTime() + (expiresIn + APPROVAL_GRACE_SECONDS) * 1_000_000_000L;
+        try {
+            while (System.nanoTime() < deadline) {
+                Thread.sleep(intervalSeconds * 1000L);
+                String accessToken = store.getCurrentAccessToken(serverUrl, signer, ignoreSslTrust);
+                String proof = signer.createProof("POST", client.signResumeEndpointUrl(), accessToken);
+                JsonNode result;
+                try {
+                    result = client.signResume(accessToken, proof, transactionId);
+                }
+                catch (SshteamHttpClient.SshteamApiException e) {
+                    throw approvalFailure(e);
+                }
+                String certificate = result.path("certificate").asText().trim();
+                if (!certificate.isEmpty()) {
+                    return certificate;
+                }
+                if (!"pending_approval".equals(result.path("status").asText())) {
+                    throw new IllegalStateException("Unexpected approval response from server");
+                }
+            }
+        }
+        catch (InterruptedException e) {
+            cancelQuietly(client, signer, transactionId);
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+        cancelQuietly(client, signer, transactionId);
+        throw new CertificateApprovalException(CertificateApprovalException.Outcome.TIMED_OUT,
+                "Timed out waiting for approval");
+    }
+
+    private void cancelQuietly(SshteamHttpClient client, DpopSigner signer, String transactionId) {
+        try {
+            String accessToken = store.getCurrentAccessToken(serverUrl, signer, ignoreSslTrust);
+            client.signCancel(accessToken, signer.createProof("POST", client.signCancelEndpointUrl(), accessToken),
+                    transactionId);
+        }
+        catch (Exception ignored) {
+            // The request expires on its own.
+        }
+    }
+
+    private static RuntimeException approvalFailure(SshteamHttpClient.SshteamApiException e) {
+        String code = "";
+        try {
+            code = new com.fasterxml.jackson.databind.ObjectMapper().readTree(e.getBody()).path("error").asText();
+        }
+        catch (Exception ignored) {
+            // Not a JSON error body.
+        }
+        switch (code) {
+            case "approval_denied":
+                return new CertificateApprovalException(CertificateApprovalException.Outcome.DENIED,
+                        "Approval denied");
+            case "approval_expired":
+                return new CertificateApprovalException(CertificateApprovalException.Outcome.EXPIRED,
+                        "Approval request expired");
+            case "approval_cancelled":
+                return new CertificateApprovalException(CertificateApprovalException.Outcome.CANCELLED,
+                        "Approval request cancelled");
+            case "approval_already_used":
+                return new CertificateApprovalException(CertificateApprovalException.Outcome.ALREADY_USED,
+                        "Approval already used");
+            case "approval_refused":
+                return new CertificateApprovalException(CertificateApprovalException.Outcome.REFUSED,
+                        "Approval no longer permitted");
+            default:
+                return new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
+    /** Notified when a request is waiting for passkey approval. */
+    public interface ApprovalListener {
+        ApprovalListener NONE = (transactionId, expiresAt) -> { };
+
+        void onPending(String transactionId, Instant expiresAt);
+    }
+
+    /** The request was not approved; {@link #outcome()} says why. */
+    public static final class CertificateApprovalException extends IllegalStateException {
+        public enum Outcome { DENIED, EXPIRED, CANCELLED, REFUSED, ALREADY_USED, TIMED_OUT }
+
+        private final Outcome outcome;
+
+        public CertificateApprovalException(Outcome outcome, String message) {
+            super(message);
+            this.outcome = outcome;
+        }
+
+        public Outcome outcome() {
+            return outcome;
+        }
     }
 
     public SshKeyPair generateEphemeralCertificate(String host, int port, String username, String keyType)

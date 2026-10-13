@@ -200,6 +200,36 @@ public class SshteamHttpClient {
         return executeJsonRequest(request, "sign");
     }
 
+    /**
+     * Polls a certificate request that is waiting for passkey approval. Returns the signed
+     * certificate once approved, or the pending status; terminal failures arrive as
+     * {@link SshteamApiException} carrying the server's {@code error} code.
+     */
+    public JsonNode signResume(String accessToken, String dpopProof, String transactionId)
+        throws IOException, InterruptedException {
+        return postTransaction(signResumeEndpointUrl(), accessToken, dpopProof, transactionId, "sign-resume");
+    }
+
+    /** Best-effort cancellation of a request that is waiting for approval. */
+    public JsonNode signCancel(String accessToken, String dpopProof, String transactionId)
+        throws IOException, InterruptedException {
+        return postTransaction(signCancelEndpointUrl(), accessToken, dpopProof, transactionId, "sign-cancel");
+    }
+
+    private JsonNode postTransaction(String url, String accessToken, String dpopProof, String transactionId, String operation)
+        throws IOException, InterruptedException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("transaction_id", transactionId);
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "DPoP " + accessToken)
+            .header("DPoP", dpopProof)
+            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+            .build();
+        return executeJsonRequest(request, operation);
+    }
+
     // ── Device management ─────────────────────────────────────────────────────
 
     /**
@@ -234,6 +264,14 @@ public class SshteamHttpClient {
 
     public String signEndpointUrl() {
         return serverUrl + "/api/v1/ssh/sign";
+    }
+
+    public String signResumeEndpointUrl() {
+        return serverUrl + "/api/v1/ssh/sign/resume";
+    }
+
+    public String signCancelEndpointUrl() {
+        return serverUrl + "/api/v1/ssh/sign/cancel";
     }
 
     public String revokeDeviceUrl(String deviceId) {
