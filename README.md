@@ -39,6 +39,10 @@ Core Java library for the **SSH Teams** ecosystem. Provides:
 implementation 'com.sshteam:sshteam-lib:0.0.1'
 ```
 
+### JPMS
+
+The library is JPMS compliant, use the module name `com.sshteam.lib`.
+
 ---
 
 ## API Overview
