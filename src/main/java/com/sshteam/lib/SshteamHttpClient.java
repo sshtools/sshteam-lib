@@ -29,6 +29,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public class SshteamHttpClient {
 
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
+
     private final String serverUrl;
     private final HttpClient http;
     private final ObjectMapper mapper;
@@ -106,6 +108,7 @@ public class SshteamHttpClient {
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(serverUrl + "/oauth2/device_authorization"))
             .header("Content-Type", "application/x-www-form-urlencoded")
+            .timeout(REQUEST_TIMEOUT)
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build();
         return executeJsonRequest(request, "device_authorization");
@@ -132,6 +135,7 @@ public class SshteamHttpClient {
             .uri(URI.create(serverUrl + "/oauth2/token"))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("DPoP", dpopProof)
+            .timeout(REQUEST_TIMEOUT)
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build();
         // Return raw response — caller inspects for authorization_pending / success
@@ -154,6 +158,7 @@ public class SshteamHttpClient {
             .uri(URI.create(serverUrl + "/oauth2/token"))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("DPoP", dpopProof)
+            .timeout(REQUEST_TIMEOUT)
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build();
         return executeJsonRequest(request, "refresh_token");
@@ -195,6 +200,7 @@ public class SshteamHttpClient {
             .header("Content-Type", "application/json")
             .header("Authorization", "DPoP " + accessToken)
             .header("DPoP", dpopProof)
+            .timeout(REQUEST_TIMEOUT)
             .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
             .build();
         return executeJsonRequest(request, "sign");
@@ -225,6 +231,7 @@ public class SshteamHttpClient {
             .header("Content-Type", "application/json")
             .header("Authorization", "DPoP " + accessToken)
             .header("DPoP", dpopProof)
+            .timeout(REQUEST_TIMEOUT)
             .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
             .build();
         return executeJsonRequest(request, operation);
@@ -250,6 +257,7 @@ public class SshteamHttpClient {
             .uri(URI.create(revokeUrl))
             .header("Authorization", "DPoP " + accessToken)
             .header("DPoP", dpopProof)
+            .timeout(REQUEST_TIMEOUT)
             .DELETE()
             .build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
