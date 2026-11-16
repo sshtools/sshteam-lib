@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Abstraction over credential storage for sshteam devices.
@@ -128,13 +128,13 @@ public interface DeviceStore {
         String dpopProof = signer.createProof("POST", client.tokenEndpointUrl());
         JsonNode refreshResult = client.refreshToken(refreshToken, dpopProof);
 
-        if (!refreshResult.has("access_token") || refreshResult.get("access_token").asText().isBlank()) {
+        if (!refreshResult.has("access_token") || refreshResult.get("access_token").asText("").isBlank()) {
             throw new IllegalStateException("Token refresh failed: no access_token returned by server");
         }
 
-        String newAccessToken = refreshResult.get("access_token").asText();
+        String newAccessToken = refreshResult.get("access_token").asText("");
         String newRefreshToken = refreshResult.has("refresh_token")
-            ? refreshResult.get("refresh_token").asText()
+            ? refreshResult.get("refresh_token").asText("")
             : refreshToken;
         long expiresIn = refreshResult.has("expires_in")
             ? refreshResult.get("expires_in").asLong()

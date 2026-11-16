@@ -14,8 +14,9 @@ import java.util.stream.Stream;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.SerializationFeature;
 
 /**
  * Reusable file-backed {@link DeviceStore} base implementation.
@@ -38,7 +39,9 @@ public abstract class AbstractFileDeviceStore implements DeviceStore {
     protected AbstractFileDeviceStore(Path baseDir, DeviceStoreEncryption encryption) {
         this.baseDir = baseDir;
         this.encryption = encryption;
-        this.mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+        this.mapper = JsonMapper.builder()
+            .enable(SerializationFeature.INDENT_OUTPUT)
+            .build();
     }
 
     protected final Path baseDir() {
@@ -144,7 +147,7 @@ public abstract class AbstractFileDeviceStore implements DeviceStore {
                             servers.add(stored.serverUrl());
                         }
                     }
-                    catch (IOException ignored) {
+                    catch (Exception ignored) {
                         // Skip malformed entries.
                     }
                 }

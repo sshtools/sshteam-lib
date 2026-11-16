@@ -9,7 +9,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sshtools.client.SshClient;
 import com.sshtools.client.SshClient.SshClientBuilder;
 import com.sshtools.client.SshClientContext;
@@ -113,7 +114,7 @@ public final class SshteamClient {
                 break;
             }
 
-            String error = pollResult.path("error").asText();
+            String error = pollResult.path("error").asText("");
             if ("authorization_pending".equals(error) || "slow_down".equals(error)) {
                 continue;
             }
@@ -138,7 +139,7 @@ public final class SshteamClient {
         long expiresInSecs = tokenResponse.path("expires_in").asLong(86400L);
         String accessToken = text(tokenResponse, "access_token");
         String refreshToken = tokenResponse.has("refresh_token")
-                ? tokenResponse.get("refresh_token").asText()
+                ? tokenResponse.get("refresh_token").asText("")
                 : null;
 
         store.saveDpopPrivateKey(serverUrl, signer.toPrivateKeyJwkJson());
@@ -200,13 +201,13 @@ public final class SshteamClient {
                 requestTimezone,
                 requestCertificateType);
 
-        if ("pending_approval".equals(response.path("status").asText())) {
+        if ("pending_approval".equals(response.path("status").asText(""))) {
             return awaitApproval(client, signer, response, listener == null ? ApprovalListener.NONE : listener);
         }
 
-        String certificate = response.path("certificate").asText().trim();
+        String certificate = response.path("certificate").asText("").trim();
         if (certificate.isEmpty()) {
-            String error = response.path("error").asText();
+            String error = response.path("error").asText("");
             throw new IllegalStateException(error.isBlank() ? "Certificate response missing certificate" : error);
         }
         return certificate;
@@ -234,11 +235,11 @@ public final class SshteamClient {
                 catch (SshteamHttpClient.SshteamApiException e) {
                     throw approvalFailure(e);
                 }
-                String certificate = result.path("certificate").asText().trim();
+                String certificate = result.path("certificate").asText("").trim();
                 if (!certificate.isEmpty()) {
                     return certificate;
                 }
-                if (!"pending_approval".equals(result.path("status").asText())) {
+                if (!"pending_approval".equals(result.path("status").asText(""))) {
                     throw new IllegalStateException("Unexpected approval response from server");
                 }
             }
@@ -267,7 +268,7 @@ public final class SshteamClient {
     private static RuntimeException approvalFailure(SshteamHttpClient.SshteamApiException e) {
         String code = "";
         try {
-            code = new com.fasterxml.jackson.databind.ObjectMapper().readTree(e.getBody()).path("error").asText();
+            code = new ObjectMapper().readTree(e.getBody()).path("error").asText("");
         }
         catch (Exception ignored) {
             // Not a JSON error body.
@@ -392,7 +393,7 @@ public final class SshteamClient {
     }
 
     private static String text(JsonNode node, String key) {
-        String value = node.path(key).asText();
+        String value = node.path(key).asText("");
         if (value.isBlank()) {
             throw new IllegalStateException("Missing expected field: " + key);
         }
@@ -400,7 +401,7 @@ public final class SshteamClient {
     }
 
     private static String firstPresentText(JsonNode node, String primaryKey, String fallbackKey) {
-        String primary = node.path(primaryKey).asText();
+        String primary = node.path(primaryKey).asText("");
         if (!primary.isBlank()) {
             return primary;
         }
