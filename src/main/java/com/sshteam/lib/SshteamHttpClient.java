@@ -164,6 +164,25 @@ public class SshteamHttpClient {
         return executeJsonRequest(request, "refresh_token");
     }
 
+    /**
+     * Submits a command for risk classification using the device's DPoP-bound access token.
+     */
+    public JsonNode classifyCommand(String accessToken, String dpopProof, String command)
+        throws IOException, InterruptedException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("command", command);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(riskClassificationEndpointUrl()))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "DPoP " + accessToken)
+            .header("DPoP", dpopProof)
+            .timeout(REQUEST_TIMEOUT)
+            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+            .build();
+        return executeJsonRequest(request, "command-classification");
+    }
+
     // ── SSH signing ───────────────────────────────────────────────────────────
 
     /**
@@ -272,6 +291,10 @@ public class SshteamHttpClient {
 
     public String signEndpointUrl() {
         return serverUrl + "/api/v1/ssh/sign";
+    }
+
+    public String riskClassificationEndpointUrl() {
+        return serverUrl + "/api/risks/classify";
     }
 
     public String signResumeEndpointUrl() {
