@@ -30,6 +30,7 @@ import tools.jackson.databind.ObjectMapper;
 public class SshteamHttpClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration CLASSIFICATION_REQUEST_TIMEOUT = Duration.ofSeconds(120);
 
     private final String serverUrl;
     private final HttpClient http;
@@ -177,7 +178,7 @@ public class SshteamHttpClient {
             .header("Content-Type", "application/json")
             .header("Authorization", "DPoP " + accessToken)
             .header("DPoP", dpopProof)
-            .timeout(REQUEST_TIMEOUT)
+            .timeout(CLASSIFICATION_REQUEST_TIMEOUT)
             .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
             .build();
         return executeJsonRequest(request, "command-classification");
@@ -283,6 +284,35 @@ public class SshteamHttpClient {
         return response.statusCode();
     }
 
+    /**
+     * Assesses sanitized SSH connection metadata against the server-side connection policy.
+     */
+    public JsonNode assessConnection(String accessToken, String dpopProof, String host, int port, String username,
+            boolean passwordAuthentication, boolean keyboardInteractiveAuthentication, String privateKeyPath,
+            boolean sshTeamRequested, boolean sshTeamUsed, boolean fallbackAuthentication)
+            throws IOException, InterruptedException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("host", host);
+        body.put("port", port);
+        body.put("username", username);
+        body.put("passwordAuthentication", passwordAuthentication);
+        body.put("keyboardInteractiveAuthentication", keyboardInteractiveAuthentication);
+        body.put("privateKeyPath", privateKeyPath);
+        body.put("sshTeamRequested", sshTeamRequested);
+        body.put("sshTeamUsed", sshTeamUsed);
+        body.put("fallbackAuthentication", fallbackAuthentication);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(connectionAssessmentEndpointUrl()))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "DPoP " + accessToken)
+            .header("DPoP", dpopProof)
+            .timeout(REQUEST_TIMEOUT)
+            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+            .build();
+        return executeJsonRequest(request, "connection-assessment");
+    }
+
     // ── Token and endpoint URL helpers ────────────────────────────────────────
 
     public String tokenEndpointUrl() {
@@ -307,6 +337,10 @@ public class SshteamHttpClient {
 
     public String revokeDeviceUrl(String deviceId) {
         return serverUrl + "/api/v1/devices/" + deviceId;
+    }
+
+    public String connectionAssessmentEndpointUrl() {
+        return serverUrl + "/api/v1/connections/assess";
     }
 
     public String getServerUrl() {
